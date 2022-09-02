@@ -16,6 +16,8 @@ let remoteUsers = {}   // remote users video and audio tracks
 let joinAndDisplayLocalStream = async () => {
 
     client.on('user-published', handleUserJoined)
+    // event from handleUserLeft
+    client.on('user-left', handleUserLeft)
 
     let UID = await client.join(APP_ID, CHANNEL, TOKEN, null)
 
@@ -67,11 +69,11 @@ let joinStream = async () => {
 // --- To trigger this function we go back to the joinAndDisplayLocalStream function and subscribe to this
 // event by calling client.om and setting tghe vent to uer-published...
 let handleUserJoined = async (user, mediaType) => {
-    remoteUsers[user.uid] = user
+    remoteUsers[user.uid] = user 
     await client.subscribe(user, mediaType)
 
-    if (mediaType ==='video'){
-        let player = document.getElementById('user-container-${user.uid')
+    if (mediaType === 'video'){
+        let player = document.getElementById(`user-container-${user.uid}`)
         if (player != null){
             player.remove()
         }
@@ -92,4 +94,80 @@ let handleUserJoined = async (user, mediaType) => {
 
 }
 
+// function that handles what happens when someone leaves the stream
+let handleUserLeft = async (user) => {
+
+    // first we want to remove the user from the remoteUsers object
+    delete remoteUsers[user.uid]
+    
+
+    // then we want to remove the video element from the html so the site
+    // can adjust to this
+    document.getElementById(`user-container-${user.uid}`).remove()
+    // then we add in this event in joinAndDisplayLocalStream
+}
+
+//adds functionality to the leave stream button so users can leave and 
+// rejoin a stream at any point
+let leaveAndRemoveLocalStream = async () => {
+    // we want to loop through all the tracks inside of our localTracks
+    // array and call the stop and close method on each track
+    for(let i = 0; localTracks.length > i; i++){
+        localTracks[i].stop() // will stop the video and audio track from playing
+        localTracks[i].close() // will close the track and release the space that that source was occupying
+        // once you call the close method you cannot reopen a track - you'll need
+        // to create a new track 
+    }
+
+    // we then officially disconnect our client from the channel
+    await client.leave()
+
+    // after we leave a stream we want to make sure that the join button gets displayed again into the dom
+    // so a user can rejoin a stream
+    document.getElementById('join-btn').style.display = 'block'
+
+    // we want to hide the controls of the stream wrapper since we're no
+    // longer in the stream
+    document.getElementById('stream-controls').style.display = 'none'
+    document.getElementById('video-streams').innerHTML = ''
+
+}
+
+// allows the user to toggle their mic
+let toggleMic = async (e) => {
+
+    // check for the current status of out audio and check if the mic is
+    // muted or not
+    if (localTracks[0].muted){   // if true we'll want to setMuted to false to unmute 
+        await localTracks[0].setMuted(false)
+        e.target.innerText = 'Mic on' // and update the text of the button inicating
+        // the new status
+        e.target.style.backgroundColor = 'cadetblue' // update the color to make sure things are a little bit more obvious to the user
+    }else{
+        await localTracks[0].setMuted(true) // doing the opposite
+        e.target.innerText = 'Mic off'
+        e.target.style.backgroundColor = '#EE4B2B'
+    }
+
+}
+
+// allows the user to toggle their camera button on and off
+let toggleCamera = async (e) => {
+    // the same as the toggleMic function only in this case we're going to get 
+    // the index of 1 out of that array to get the video track 
+    if(localTracks[1].muted){
+        await localTracks[1].setMuted(false)
+        e.target.innerText = 'Camera on'
+        e.target.style.backgroundColor = 'cadetblue'
+    }else{
+        await localTracks[1].setMuted(true)
+        e.target.innerText = 'Camera off'
+        e.target.style.backgroundColor = '#EE4B2B'
+    }
+
+}
+
 document.getElementById('join-btn').addEventListener('click', joinStream)
+document.getElementById('leave-btn').addEventListener('click', leaveAndRemoveLocalStream)
+document.getElementById('mic-btn').addEventListener('click', toggleMic)
+document.getElementById('camera-btn').addEventListener('click', toggleCamera)
